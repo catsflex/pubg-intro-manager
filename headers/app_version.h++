@@ -1,0 +1,16 @@
+#pragma once
+
+#define VERSION_MAJOR 1
+#define VERSION_MINOR 0
+#define VERSION_PATCH 0
+#define VERSION_BUILD 0
+
+// Literal C++'s idiocracy.
+#define STRINGIFY_HELPER(x) #x
+#define STRINGIFY(x) STRINGIFY_HELPER(x)
+
+#define VERSION_STRING \
+	STRINGIFY(VERSION_MAJOR) "." \
+	STRINGIFY(VERSION_MINOR) "." \
+	STRINGIFY(VERSION_PATCH) "." \
+	STRINGIFY(VERSION_BUILD)

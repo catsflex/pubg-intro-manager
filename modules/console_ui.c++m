@@ -1,0 +1,262 @@
+module;
+
+#include <charconv>
+#include <future>
+#include <iostream>
+#include <optional>
+#include <print>
+#include <random>
+#include <string>
+
+#include "app_version.h++"
+
+export module console_ui;
+
+import intro_manager;
+import logger;
+import my_utils;
+
+#define loop while (true)
+
+
+namespace cat {
+
+	struct option {
+		size_t index;
+		std::string_view description;
+	};
+
+	export class console_ui {
+
+		#pragma region Fields
+
+		private:
+		// Asynchronous warm-up.
+		std::future<void> init_task_;
+		bool is_warmed_up_ = false;
+
+		#pragma endregion
+
+		#pragma region Styling
+
+		private:
+		static constexpr std::string_view INDENT_ = "  ";
+		static constexpr std::string_view CATEGORY_PREFIX_ = ":: ";
+		static constexpr std::string_view OPTION_INDENT_ = "   ";
+		static constexpr std::string_view SEPARATOR_ = "----------------------------------------";
+
+		static constexpr std::string_view TOOLS_CATEGORY_ = "TOOLS";
+
+		#pragma endregion
+
+		#pragma region Options
+
+		private:
+		static constexpr option DISABLE_INTRO_OPTION_{ 1, "Disable intro movies" };
+		static constexpr option ENABLE_INTRO_OPTION_{ 2, "Enable intro movies" };
+
+		static constexpr option EXIT_OPTION_{ 0, "Exit" };
+
+		#pragma endregion
+
+		#pragma region Management
+
+		public:
+		console_ui() {
+			init_task_ = std::async(
+				std::launch::async, [] {
+					intro_manager::get();
+					// std::this_thread::sleep_for(std::chrono::seconds(2));	// Testing purposes.
+				}
+			);
+		}
+
+		public:
+		console_ui(const console_ui &) = delete;
+		console_ui &operator=(const console_ui &) = delete;
+		console_ui(console_ui &&) = delete;
+		console_ui &operator=(console_ui &&) = delete;
+		~console_ui() = default;
+
+		public:
+		static auto get() -> console_ui & {
+			static console_ui instance;
+			return instance;
+		}
+
+		#pragma endregion
+
+		#pragma region Public API
+
+		public:
+		auto start() noexcept -> void {
+			main_menu();
+		}
+
+		#pragma endregion
+
+		#pragma region Private API
+
+		private:
+		auto main_menu() noexcept -> void {
+			loop {
+				clear_console();
+				print_main_menu();
+
+				auto option_index = prompt_for_option_index();
+				if (!option_index) continue;
+				if (*option_index == EXIT_OPTION_.index) return;
+
+				ensure_initialized();
+				const auto &intro_manager = intro_manager::get();
+
+				switch (*option_index) {
+					default: continue;
+
+					case DISABLE_INTRO_OPTION_.index: {
+						clear_console();
+						size_t disabled_count = intro_manager.disable_intro_movies();
+						std::println("Disabled {} intro movies.", disabled_count);
+						wait_for_user();
+						break;
+					}
+
+					case ENABLE_INTRO_OPTION_.index: {
+						clear_console();
+						size_t enabled_count = intro_manager.enable_intro_movies();
+						std::println("Enabled {} intro movies.", enabled_count);
+						wait_for_user();
+						break;
+					}
+				}
+			}
+		}
+
+		private:
+		static auto clear_console() noexcept -> void {
+			#ifdef _WIN32
+			system("cls");
+			#else
+			system("clear");
+			#endif
+		}
+
+		private:
+		static auto print_main_menu() noexcept -> void {
+			print_main_menu_header();
+			print_main_menu_elements();
+			print_main_menu_footer();
+		}
+
+		private:
+		static auto print_main_menu_header() noexcept -> void {
+			std::println();
+			std::println("{}PUBG Intro Manager (v{})", INDENT_, VERSION_STRING);
+			std::println("{}(c) // catsflex // 2026", INDENT_);
+			trigger_easter_egg();
+			print_separator();
+			std::println();
+		}
+
+		private:
+		static auto print_main_menu_elements() noexcept -> void {
+			print_category(TOOLS_CATEGORY_);
+			print_option(DISABLE_INTRO_OPTION_);
+			print_option(ENABLE_INTRO_OPTION_);
+			std::println();
+		}
+
+		private:
+		static auto print_main_menu_footer() noexcept -> void {
+			print_separator();
+			print_option(EXIT_OPTION_);
+			std::println();
+		}
+
+		private:
+		static auto print_category(std::string_view category) noexcept -> void {
+			std::println("{}{}{}", INDENT_, CATEGORY_PREFIX_, category);
+		}
+
+		private:
+		static auto print_option(const option &opt) noexcept -> void {
+			std::println("{}{}{}. {}", INDENT_, OPTION_INDENT_, opt.index, opt.description);
+		}
+
+		private:
+		static auto print_separator() noexcept -> void {
+			std::println("{}{}", INDENT_, SEPARATOR_);
+		}
+
+		private:
+		static auto prompt_for_option_index() noexcept -> std::optional<size_t> {
+			std::print("Select an option (0-2): ");
+
+			std::string input;
+			if (!std::getline(std::cin, input) || input.empty()) return std::nullopt;
+
+			size_t option_index = 0;
+			auto [ptr, ec] = std::from_chars(input.data(), input.data() + input.size(), option_index);
+
+			return ec == std::errc{} ? std::make_optional(option_index) : std::nullopt;
+		}
+
+		private:
+		static auto wait_for_user() noexcept -> void {
+			std::println("Press 'Enter' to continue...");
+			std::string dummy;
+			std::getline(std::cin, dummy);
+		}
+
+		private:
+		static auto prompt_for_exit() noexcept -> void {
+			std::println("Press 'Enter' to exit...");
+			std::string dummy;
+			std::getline(std::cin, dummy);
+			exit(EXIT_FAILURE);
+		}
+
+		private:
+		auto ensure_initialized() noexcept -> void {
+			if (is_warmed_up_) return;
+
+			bool has_seen_init_state = false;
+
+			if (init_task_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+				clear_console();
+				logger::info("Looking for PUBG installation directory...");
+				has_seen_init_state = true;
+			}
+
+			init_task_.wait();
+			is_warmed_up_ = true;
+
+			if (!intro_manager::get().is_game_found()) {
+				if (!has_seen_init_state) {
+					clear_console();
+				}
+
+				logger::error("PUBG installation directory not found! Is it installed via Steam?");
+				prompt_for_exit();
+				return;
+			}
+
+			if (has_seen_init_state) {
+				logger::info("PUBG installation directory found!");
+			}
+		}
+
+		private:
+		static auto trigger_easter_egg() noexcept -> void {
+			static constexpr i32 mean_frequency = 1'000;
+			static std::mt19937 gen(std::random_device{}());
+			static std::uniform_int_distribution<i32> dist(1, mean_frequency);
+
+			if (dist(gen) != mean_frequency) return;
+
+			std::println(R"({}\_( ^._.^) This message has a 1 in {} chance to appear!)", INDENT_, mean_frequency);
+		}
+
+		#pragma endregion
+	};
+}

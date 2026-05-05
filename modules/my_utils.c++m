@@ -1,0 +1,10 @@
+module;
+
+#include <cstdint>
+#include <filesystem>
+
+export module my_utils;
+
+
+export namespace fs = std::filesystem;
+export using i32 = int32_t;

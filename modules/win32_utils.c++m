@@ -1,0 +1,116 @@
+module;
+
+#include <optional>
+#include <string>
+#include <string_view>
+#include <windows.h>
+
+export module win32_utils;
+
+
+export namespace win32 {
+
+	// RAII since I'm good.
+	class registry_key {
+
+		#pragma region Fields
+
+		private:
+		HKEY hkey_ = nullptr;
+
+		#pragma endregion
+
+		#pragma region Management
+
+		public:
+		registry_key(HKEY hkey, const char *subkey) {
+			if (RegOpenKeyExA(hkey, subkey, 0UL, KEY_READ, &hkey_) == ERROR_SUCCESS) return;
+
+			hkey_ = nullptr;
+		}
+
+		public:
+		~registry_key() {
+			perform_clean_up();
+		}
+
+		public:
+		registry_key(const registry_key &) = delete;
+
+		public:
+		registry_key &operator=(const registry_key &) = delete;
+
+		public:
+		registry_key(registry_key &&other) noexcept {
+			hkey_ = std::exchange(other.hkey_, nullptr);
+		}
+
+		public:
+		registry_key &operator=(registry_key &&other) noexcept {
+			if (this != &other) {
+				perform_clean_up();
+				hkey_ = std::exchange(other.hkey_, nullptr);
+			}
+
+			return *this;
+		}
+
+		#pragma endregion
+
+		#pragma region Public API
+
+		public:
+		explicit operator HKEY() const noexcept {
+			return hkey_;
+		}
+
+		public:
+		[[nodiscard]] auto is_valid() const noexcept -> bool {
+			return hkey_ != nullptr;
+		}
+
+		public:
+		auto get_path(const char *value) const -> std::optional<std::string> {
+			if (!is_valid()) return std::nullopt;
+
+			DWORD required_size = 0UL;	// How big is the path?
+			{
+				DWORD type = 0UL;		// What type of value is it?
+
+				// Perform a query to determine the required buffer size & type.
+				LSTATUS status = RegQueryValueExA(hkey_, value, nullptr, &type, nullptr, &required_size);
+				if (status != ERROR_SUCCESS) return std::nullopt;
+				if (type != REG_SZ && type != REG_EXPAND_SZ) return std::nullopt;
+				if (required_size <= 1UL) return std::nullopt;
+			}
+
+			// Path buffer.
+			std::string path(required_size, '\0');
+
+			// Perform the actual query.
+			if (RegQueryValueExA(hkey_, value, nullptr, nullptr, reinterpret_cast<LPBYTE>(path.data()), &required_size) != ERROR_SUCCESS)
+				return std::nullopt;
+
+			// Remove the trailing null character.
+			if (const auto actual_size = path.find('\0'); actual_size != std::string::npos) {
+				path.resize(actual_size);
+			}
+
+			return path;
+		}
+
+		#pragma endregion
+
+		#pragma region Private API
+
+		private:
+		auto perform_clean_up() noexcept -> void {
+			if (!is_valid()) return;
+
+			RegCloseKey(hkey_);
+			hkey_ = nullptr;
+		}
+
+		#pragma endregion
+	};
+}

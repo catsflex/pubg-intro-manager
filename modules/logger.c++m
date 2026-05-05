@@ -1,0 +1,69 @@
+module;
+
+#include <format>
+#include <print>
+
+export module logger;
+
+
+namespace cat {
+
+	enum class log_level {
+		INFO, WARN, ERROR
+	};
+
+	export class logger {
+
+		public:
+		template<typename... Args>
+		static void info(std::format_string<Args...> fmt, Args &&... args) {
+			log(log_level::INFO, fmt, std::forward<Args>(args)...);
+		}
+
+		public:
+		template<typename... Args>
+		static void warn(std::format_string<Args...> fmt, Args &&... args) {
+			log(log_level::WARN, fmt, std::forward<Args>(args)...);
+		}
+
+		public:
+		template<typename... Args>
+		static void error(std::format_string<Args...> fmt, Args &&... args) {
+			log(log_level::ERROR, fmt, std::forward<Args>(args)...);
+		}
+
+		private:
+		template<typename... Args>
+		static void log(const log_level level, std::format_string<Args...> fmt, Args &&... args) {
+			//auto now = std::chrono::system_clock::now();	// Can't decide if this is needed.
+			std::string prefix;
+			FILE *target_stream{};
+
+			switch (level) {
+
+				case log_level::INFO: {
+					prefix = "[INFO]";
+					target_stream = stdout;
+					break;
+				}
+
+				case log_level::WARN: {
+					prefix = "[WARN]";
+					target_stream = stdout;
+					break;
+				}
+
+				case log_level::ERROR: {
+					prefix = "[ERROR]";
+					target_stream = stderr;
+					break;
+				}
+			}
+
+			std::println(
+				target_stream, "{} {}",
+				prefix, std::vformat(fmt.get(), std::make_format_args(args...))
+			);
+		}
+	};
+}

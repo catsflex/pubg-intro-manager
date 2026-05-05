@@ -1,0 +1,299 @@
+module;
+
+#include <array>
+#include <filesystem>
+#include <fstream>
+#include <optional>
+#include <print>
+#include <regex>
+#include <string>
+#include <vector>
+#include <windows.h>
+
+export module intro_manager;
+
+import logger;
+import my_utils;
+import win32_utils;
+
+
+namespace cat {
+
+	enum class movie_operation {
+		DISABLE, ENABLE
+	};
+
+	export class intro_manager {
+
+		#pragma region Fields
+
+		private:
+		std::vector<fs::path> movie_directories_{};
+
+		#pragma endregion
+
+		#pragma region Constants
+
+		private:
+		static constexpr std::string_view DISABLED_MOVIE_EXTENSION_ = ".bak";
+		static constexpr std::string_view PUBG_APP_ID_ = "578080";
+
+		// Extensions of the movies that we want to disable.
+		static constexpr std::array<std::string_view, 1> MOVIE_EXTENSIONS_ = { ".mp4" };
+
+		// List of the subdirectories containing the movies.
+		// Define them relative to the PUBG directory.
+		static constexpr std::array<std::string_view, 2> RELATIVE_MOVIE_DIRECTORIES_ = {
+			"TslGame/Content/Movies/Common/LoadingScreen",
+			"TslGame/Content/Movies/PC/LoadingScreen"
+		};
+
+
+		#pragma endregion
+
+		#pragma region Management
+
+		private:
+		intro_manager() {
+			movie_directories_ = resolve_movie_directories();
+		}
+
+		public:
+		intro_manager(const intro_manager &) = delete;
+		intro_manager &operator=(const intro_manager &) = delete;
+		intro_manager(intro_manager &&) = delete;
+		intro_manager &operator=(intro_manager &&) = delete;
+		~intro_manager() = default;
+
+		public:
+		static auto get() -> intro_manager & {
+			static intro_manager instance;	// Lazy initialization. =)
+			return instance;
+		}
+
+		#pragma endregion
+
+		#pragma region Public API
+
+		public:
+		[[nodiscard]] auto disable_intro_movies() const noexcept -> size_t {
+			return process_movies(movie_operation::DISABLE);
+		}
+
+		public:
+		[[nodiscard]] auto enable_intro_movies() const noexcept -> size_t {
+			return process_movies(movie_operation::ENABLE);
+		}
+
+		public:
+		[[nodiscard]] auto is_game_found() const noexcept -> bool {
+			return !movie_directories_.empty();
+		}
+
+		#pragma endregion
+
+		#pragma region Private API
+
+		private:
+		[[nodiscard]] auto process_movies(const movie_operation op) const noexcept -> size_t {
+			size_t processed_count = 0;
+			bool has_encountered_errors = false;
+			std::error_code ec;
+
+			for (const auto &dir : movie_directories_) {
+				if (!fs::exists(dir, ec) || ec) {
+					logger::warn("Can't process '{}'.", dir.string());
+					logger::warn("Reason: {} (code {}).", ec.message(), ec.value());
+					logger::warn("Skipping...");
+					has_encountered_errors = true;
+					ec.clear();
+					continue;
+				}
+
+				for (const auto &entry : fs::directory_iterator(dir, ec)) {
+					if (ec) {
+						logger::warn("Directory iteration failed for '{}'.", dir.string());
+						logger::warn("Reason: {} (code {}).", ec.message(), ec.value());
+						logger::warn("Skipping...");
+						has_encountered_errors = true;
+						ec.clear();
+						break;
+					}
+
+					bool success = false;
+					if (op == movie_operation::DISABLE && is_movie(entry)) {
+						success = disable_intro_movie(entry);
+					} else if (op == movie_operation::ENABLE && is_disabled_movie(entry)) {
+						success = enable_intro_movie(entry);
+					}
+
+					if (success) {
+						++processed_count;
+					}
+				}
+			}
+
+			if (has_encountered_errors) {
+				std::println();
+			}
+
+			return processed_count;
+		}
+
+		// Restores disabled movie extension e.g., from ".mp4.bak" to ".mp4".
+		private:
+		static auto enable_intro_movie(const fs::directory_entry &disabled_movie) noexcept -> bool {
+			const auto &original_path = disabled_movie.path();
+			const auto restored_path = original_path.parent_path() / original_path.stem();
+
+			std::error_code ec;
+
+			// If there is already a movie here (probably after an update), delete the back-up.
+			if (fs::exists(restored_path, ec)) {
+				fs::remove(original_path, ec);
+				return !ec;
+			}
+
+			fs::rename(original_path, restored_path, ec);
+
+			return !ec;
+		}
+
+		// Checks if the file is a back-up movie by checking its extension.
+		private:
+		static auto is_disabled_movie(const fs::directory_entry &entry) noexcept -> bool {
+			if (std::error_code ec; !entry.is_regular_file(ec)) return false;
+
+			const auto &path = entry.path();
+
+			// If the file is not a back-up file.
+			if (path.extension() != DISABLED_MOVIE_EXTENSION_) return false;
+
+			const auto original_file_extension = path.stem().extension();
+
+			return std::ranges::contains(MOVIE_EXTENSIONS_, original_file_extension);
+		}
+
+		// Changes movie extension e.g., from ".mp4" to ".mp4.bak".
+		private:
+		static auto disable_intro_movie(const fs::directory_entry &movie) noexcept -> bool {
+			const auto &original_path = movie.path();
+			auto disabled_path = original_path;
+			disabled_path += DISABLED_MOVIE_EXTENSION_;
+
+			std::error_code ec;
+
+			// If there is already a back-up file here (probably an older one), delete it.
+			if (fs::exists(disabled_path, ec)) {
+				fs::remove(disabled_path, ec);
+			}
+
+			fs::rename(original_path, disabled_path, ec);
+
+			return !ec;
+		}
+
+		// Checks if the file is a movie by checking its extension.
+		private:
+		static auto is_movie(const fs::directory_entry &entry) noexcept -> bool {
+			if (std::error_code ec; !entry.is_regular_file(ec)) return false;
+
+			const auto file_extension = entry.path().extension();
+
+			return std::ranges::contains(MOVIE_EXTENSIONS_, file_extension);
+		}
+
+		private:
+		static auto resolve_movie_directories() noexcept -> std::vector<fs::path> {
+			const auto steam_path = get_steam_path();
+			if (!steam_path) return {};
+
+			// Path to the file with the list of installed content.
+			const auto manifest_path = resolve_library_manifest(*steam_path);
+			const auto manifest_content = read_file_content(manifest_path);
+			if (!manifest_content) return {};
+
+			const auto pubg_path = extract_pubg_path(*manifest_content);
+			if (std::error_code ec; !pubg_path || !fs::exists(*pubg_path, ec)) return {};;
+
+			std::vector<fs::path> resolved_directories;
+			for (const auto &rel_dir : RELATIVE_MOVIE_DIRECTORIES_) {
+
+				// Using .make_preferred() for better formatting.
+				const auto full_path = (*pubg_path / rel_dir).make_preferred();
+				resolved_directories.push_back(full_path);
+			}
+
+			return resolved_directories;
+		}
+
+		private:
+		static auto extract_pubg_path(std::string_view content) noexcept -> std::optional<fs::path> {
+
+			// Regex logic (I hate regex):
+			// \"path\"		-> Matches the literal key "path" (the path to the library is right next to "path").
+			// \s+			-> Matches the whitespace between the key and the value.
+			// \"([^\"]+)\"	-> Captures the library path.
+			// [^}]*?		-> Non-greedy match that stays WITHIN the current library block.
+			// \"apps\"		-> Ensures we are looking inside the "apps" subsection of that library.
+			// [^}]*?		-> Continues searching within the "apps" scope.
+			// \"ID\"		-> Confirms the presence of the specific app ID.
+			static const std::string pattern = R"(\"path\"\s+\"([^\"]+)\"[^}]*?\"apps\"[^}]*?\")" + std::string(PUBG_APP_ID_) + R"(\")";
+			static const std::regex re(pattern);
+
+			// match[1] is the path to the library.
+			if (std::cmatch match; std::regex_search(content.data(), content.data() + content.size(), match, re))
+				return fs::path(match[1].str()) / "steamapps/common/PUBG";
+
+			return std::nullopt;
+		}
+
+		private:
+		static auto read_file_content(const fs::path &file_path) noexcept -> std::optional<std::string> {
+			std::error_code ec;
+			if (!fs::exists(file_path, ec)) return std::nullopt;
+
+			std::ifstream file(file_path, std::ios::binary);
+			if (!file.is_open()) return std::nullopt;
+
+			const auto size = fs::file_size(file_path, ec);
+			if (ec) return std::nullopt;
+
+			std::string content;
+			content.resize(static_cast<size_t>(size));
+			if (!file.read(content.data(), static_cast<std::streamsize>(size))) return std::nullopt;
+
+			return content;
+		}
+
+		private:
+		static auto resolve_library_manifest(std::string_view steam_path) noexcept -> fs::path {
+			return fs::path(steam_path) / "steamapps/libraryfolders.vdf";
+		}
+
+		private:
+		static auto get_steam_path() noexcept -> std::optional<std::string> {
+
+			// System-wide path (requires running as an administrator).
+			// This is the path set in the Steam installer, which is typically C:\Program Files (x86)\Steam.
+			// ^ CLion autocomplete is so fucking insane. No way it detects stuff like this!
+			if (auto system_path = get_path_from_registry(HKEY_LOCAL_MACHINE, R"(SOFTWARE\WOW6432Node\Valve\Steam)", "InstallPath"))
+				return system_path;
+
+			// Per-user path.
+			// Current user's active Steam directory. It is updated automatically on every Steam launch.
+			if (auto user_path = get_path_from_registry(HKEY_CURRENT_USER, R"(SOFTWARE\Valve\Steam)", "SteamPath"))
+				return user_path;
+
+			return std::nullopt;
+		}
+
+		private:
+		static auto get_path_from_registry(HKEY h_key, std::string_view subkey, std::string_view value) noexcept -> std::optional<std::string> {
+			const win32::registry_key key(h_key, subkey.data());
+			return key.get_path(value.data());
+		}
+
+		#pragma endregion
+	};
+}
