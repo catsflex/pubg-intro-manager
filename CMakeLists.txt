@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.31)
-set(PROJECT_NAME pubg-intro-remover)
+set(PROJECT_NAME pubg-intro-manager)
 set(EXECUTABLE_NAME "PUBG Intro Manager")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
@@ -15,7 +15,7 @@ add_executable(${PROJECT_NAME}
 )
 
 # Headers
-target_include_directories(pubg-intro-remover PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/headers")
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/headers")
 
 # Modules
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
