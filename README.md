@@ -18,3 +18,8 @@ This small program will help you load into PUBG a bit faster by removing intro m
 1. Download the latest version from the [**Releases**](https://github.com/catsflex/pubg-intro-manager/releases) tab.
 2. Run the executable as an **Administrator**.
 3. Select an option from the menu.
+
+## Notice
+
+Every major PUBG update installs either new movies or the previous ones you have disabled.
+Make sure to run a program to remove them again.
