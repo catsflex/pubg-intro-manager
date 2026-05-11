@@ -9,7 +9,9 @@ export module logger;
 namespace cat {
 
 	enum class log_level {
-		INFO, WARN, ERROR
+		INFO,
+		WARN,
+		ERROR
 	};
 
 	export class logger {

@@ -21,8 +21,14 @@ import my_utils;
 
 namespace cat {
 
+	enum class menu_action : size_t {
+		EXIT = 0,
+		DISABLE_INTRO,
+		ENABLE_INTRO
+	};
+
 	struct option {
-		size_t index;
+		menu_action action;
 		std::string_view description;
 	};
 
@@ -45,6 +51,10 @@ namespace cat {
 		static constexpr std::string_view OPTION_INDENT_ = "   ";
 		static constexpr std::string_view SEPARATOR_ = "----------------------------------------";
 
+		#pragma endregion
+
+		#pragma region Categories
+
 		static constexpr std::string_view TOOLS_CATEGORY_ = "TOOLS";
 
 		#pragma endregion
@@ -52,10 +62,12 @@ namespace cat {
 		#pragma region Options
 
 		private:
-		static constexpr option DISABLE_INTRO_OPTION_{ 1, "Disable intro movies" };
-		static constexpr option ENABLE_INTRO_OPTION_{ 2, "Enable intro movies" };
+		static constexpr std::array TOOLS_OPTIONS_ = {
+			option{ menu_action::DISABLE_INTRO, "Disable intro movies" },
+			option{ menu_action::ENABLE_INTRO, "Enable intro movies" }
+		};
 
-		static constexpr option EXIT_OPTION_{ 0, "Exit" };
+		static constexpr option EXIT_OPTION_{ menu_action::EXIT, "Exit" };
 
 		#pragma endregion
 
@@ -105,15 +117,17 @@ namespace cat {
 
 				auto option_index = prompt_for_option_index();
 				if (!option_index) continue;
-				if (*option_index == EXIT_OPTION_.index) return;
+
+				const auto action = static_cast<menu_action>(*option_index);
+				if (action == EXIT_OPTION_.action) return;
 
 				ensure_initialized();
 				const auto &intro_manager = intro_manager::get();
 
-				switch (*option_index) {
+				switch (action) {
 					default: continue;
 
-					case DISABLE_INTRO_OPTION_.index: {
+					case menu_action::DISABLE_INTRO: {
 						clear_console();
 						size_t disabled_count = intro_manager.disable_intro_movies();
 						std::println("Disabled {} intro movies.", disabled_count);
@@ -121,7 +135,7 @@ namespace cat {
 						break;
 					}
 
-					case ENABLE_INTRO_OPTION_.index: {
+					case menu_action::ENABLE_INTRO: {
 						clear_console();
 						size_t enabled_count = intro_manager.enable_intro_movies();
 						std::println("Enabled {} intro movies.", enabled_count);
@@ -151,7 +165,7 @@ namespace cat {
 		private:
 		static auto print_main_menu_header() noexcept -> void {
 			std::println();
-			std::println("{}PUBG Intro Manager (v{})", INDENT_, VERSION_STRING);
+			std::println("{}PUBG Intro Manager (v{})", INDENT_, VERSION_STRING_NO_BUILD);
 			std::println("{}(c) // catsflex // 2026", INDENT_);
 			trigger_easter_egg();
 			print_separator();
@@ -161,8 +175,9 @@ namespace cat {
 		private:
 		static auto print_main_menu_elements() noexcept -> void {
 			print_category(TOOLS_CATEGORY_);
-			print_option(DISABLE_INTRO_OPTION_);
-			print_option(ENABLE_INTRO_OPTION_);
+			for (const auto &option : TOOLS_OPTIONS_) {
+				print_option(option);
+			}
 			std::println();
 		}
 
@@ -180,7 +195,8 @@ namespace cat {
 
 		private:
 		static auto print_option(const option &opt) noexcept -> void {
-			std::println("{}{}{}. {}", INDENT_, OPTION_INDENT_, opt.index, opt.description);
+			const auto index = static_cast<size_t>(opt.action);
+			std::println("{}{}{}. {}", INDENT_, OPTION_INDENT_, index, opt.description);
 		}
 
 		private:

@@ -20,7 +20,8 @@ import win32_utils;
 namespace cat {
 
 	enum class movie_operation {
-		DISABLE, ENABLE
+		DISABLE,
+		ENABLE
 	};
 
 	export class intro_manager {

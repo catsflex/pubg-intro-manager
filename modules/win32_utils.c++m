@@ -24,7 +24,7 @@ export namespace win32 {
 
 		public:
 		registry_key(HKEY hkey, const char *subkey) {
-			if (RegOpenKeyExA(hkey, subkey, 0UL, KEY_READ, &hkey_) == ERROR_SUCCESS) return;
+			if (RegOpenKeyExA(hkey, subkey, 0, KEY_READ, &hkey_) == ERROR_SUCCESS) return;
 
 			hkey_ = nullptr;
 		}
@@ -73,15 +73,15 @@ export namespace win32 {
 		auto get_path(const char *value) const -> std::optional<std::string> {
 			if (!is_valid()) return std::nullopt;
 
-			DWORD required_size = 0UL;	// How big is the path?
+			DWORD required_size = 0;	// How big is the path?
 			{
-				DWORD type = 0UL;		// What type of value is it?
+				DWORD type = 0;		// What type of value is it?
 
 				// Perform a query to determine the required buffer size & type.
 				LSTATUS status = RegQueryValueExA(hkey_, value, nullptr, &type, nullptr, &required_size);
 				if (status != ERROR_SUCCESS) return std::nullopt;
 				if (type != REG_SZ && type != REG_EXPAND_SZ) return std::nullopt;
-				if (required_size <= 1UL) return std::nullopt;
+				if (required_size <= 1) return std::nullopt;
 			}
 
 			// Path buffer.
@@ -105,10 +105,9 @@ export namespace win32 {
 
 		private:
 		auto perform_clean_up() noexcept -> void {
-			if (!is_valid()) return;
-
-			RegCloseKey(hkey_);
-			hkey_ = nullptr;
+			if (HKEY h = std::exchange(hkey_, nullptr)) {
+				RegCloseKey(h);
+			}
 		}
 
 		#pragma endregion
