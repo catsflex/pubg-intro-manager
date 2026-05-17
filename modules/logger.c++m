@@ -39,7 +39,7 @@ namespace cat {
 		static void log(const log_level level, std::format_string<Args...> fmt, Args &&... args) {
 			//auto now = std::chrono::system_clock::now();	// Can't decide if this is needed.
 			std::string prefix;
-			FILE *target_stream{};
+			std::FILE *target_stream{};
 
 			switch (level) {
 

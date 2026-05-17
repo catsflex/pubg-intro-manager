@@ -7,6 +7,7 @@ module;
 #include <print>
 #include <random>
 #include <string>
+#include <string_view>
 
 #include "app_version.h++"
 
@@ -21,7 +22,7 @@ import my_utils;
 
 namespace cat {
 
-	enum class menu_action : size_t {
+	enum class menu_action : std::size_t {
 		EXIT = 0,
 		DISABLE_INTRO,
 		ENABLE_INTRO
@@ -46,16 +47,16 @@ namespace cat {
 		#pragma region Styling
 
 		private:
-		static constexpr std::string_view INDENT_ = "  ";
-		static constexpr std::string_view CATEGORY_PREFIX_ = ":: ";
-		static constexpr std::string_view OPTION_INDENT_ = "   ";
-		static constexpr std::string_view SEPARATOR_ = "----------------------------------------";
+		static constexpr auto INDENT_ = "  "sv;
+		static constexpr auto CATEGORY_PREFIX_ = ":: "sv;
+		static constexpr auto OPTION_INDENT_ = "   "sv;
+		static constexpr auto SEPARATOR_ = "----------------------------------------"sv;
 
 		#pragma endregion
 
 		#pragma region Categories
 
-		static constexpr std::string_view TOOLS_CATEGORY_ = "TOOLS";
+		static constexpr auto TOOLS_CATEGORY_ = "TOOLS"sv;
 
 		#pragma endregion
 
@@ -63,11 +64,11 @@ namespace cat {
 
 		private:
 		static constexpr std::array TOOLS_OPTIONS_ = {
-			option{ menu_action::DISABLE_INTRO, "Disable intro movies" },
-			option{ menu_action::ENABLE_INTRO, "Enable intro movies" }
+			option{ menu_action::DISABLE_INTRO, "Disable intro movies"sv },
+			option{ menu_action::ENABLE_INTRO, "Enable intro movies"sv }
 		};
 
-		static constexpr option EXIT_OPTION_{ menu_action::EXIT, "Exit" };
+		static constexpr option EXIT_OPTION_{ menu_action::EXIT, "Exit"sv };
 
 		#pragma endregion
 
@@ -78,7 +79,7 @@ namespace cat {
 			init_task_ = std::async(
 				std::launch::async, [] {
 					intro_manager::get();
-					// std::this_thread::sleep_for(std::chrono::seconds(2));	// Testing purposes.
+					//std::this_thread::sleep_for(std::chrono::seconds(2));	// Testing purposes.
 				}
 			);
 		}
@@ -129,7 +130,7 @@ namespace cat {
 
 					case menu_action::DISABLE_INTRO: {
 						clear_console();
-						size_t disabled_count = intro_manager.disable_intro_movies();
+						std::size_t disabled_count = intro_manager.disable_intro_movies();
 						std::println("Disabled {} intro movies.", disabled_count);
 						wait_for_user();
 						break;
@@ -137,7 +138,7 @@ namespace cat {
 
 					case menu_action::ENABLE_INTRO: {
 						clear_console();
-						size_t enabled_count = intro_manager.enable_intro_movies();
+						std::size_t enabled_count = intro_manager.enable_intro_movies();
 						std::println("Enabled {} intro movies.", enabled_count);
 						wait_for_user();
 						break;
@@ -149,9 +150,9 @@ namespace cat {
 		private:
 		static auto clear_console() noexcept -> void {
 			#ifdef _WIN32
-			system("cls");
+			std::system("cls");
 			#else
-			system("clear");
+			std::system("clear");
 			#endif
 		}
 
@@ -195,7 +196,7 @@ namespace cat {
 
 		private:
 		static auto print_option(const option &opt) noexcept -> void {
-			const auto index = static_cast<size_t>(opt.action);
+			const auto index = static_cast<std::size_t>(opt.action);
 			std::println("{}{}{}. {}", INDENT_, OPTION_INDENT_, index, opt.description);
 		}
 
@@ -205,13 +206,13 @@ namespace cat {
 		}
 
 		private:
-		static auto prompt_for_option_index() noexcept -> std::optional<size_t> {
+		static auto prompt_for_option_index() noexcept -> std::optional<std::size_t> {
 			std::print("Select an option (0-2): ");
 
 			std::string input;
 			if (!std::getline(std::cin, input) || input.empty()) return std::nullopt;
 
-			size_t option_index = 0;
+			std::size_t option_index = 0;
 			auto [ptr, ec] = std::from_chars(input.data(), input.data() + input.size(), option_index);
 
 			return ec == std::errc{} ? std::make_optional(option_index) : std::nullopt;

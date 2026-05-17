@@ -7,6 +7,7 @@ module;
 #include <print>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <windows.h>
 
@@ -36,19 +37,18 @@ namespace cat {
 		#pragma region Constants
 
 		private:
-		static constexpr std::string_view DISABLED_MOVIE_EXTENSION_ = ".bak";
-		static constexpr std::string_view PUBG_APP_ID_ = "578080";
+		static constexpr auto DISABLED_MOVIE_EXTENSION_ = ".bak"sv;
+		static constexpr auto PUBG_APP_ID_ = "578080"sv;
 
 		// Extensions of the movies that we want to disable.
-		static constexpr std::array<std::string_view, 1> MOVIE_EXTENSIONS_ = { ".mp4" };
+		static constexpr std::array MOVIE_EXTENSIONS_ = { ".mp4"sv };
 
 		// List of the subdirectories containing the movies.
 		// Define them relative to the PUBG directory.
-		static constexpr std::array<std::string_view, 2> RELATIVE_MOVIE_DIRECTORIES_ = {
-			"TslGame/Content/Movies/Common/LoadingScreen",
-			"TslGame/Content/Movies/PC/LoadingScreen"
+		static constexpr std::array RELATIVE_MOVIE_DIRECTORIES_ = {
+			"TslGame/Content/Movies/Common/LoadingScreen"sv,
+			"TslGame/Content/Movies/PC/LoadingScreen"sv
 		};
-
 
 		#pragma endregion
 
@@ -77,12 +77,12 @@ namespace cat {
 		#pragma region Public API
 
 		public:
-		[[nodiscard]] auto disable_intro_movies() const noexcept -> size_t {
+		[[nodiscard]] auto disable_intro_movies() const noexcept -> std::size_t {
 			return process_movies(movie_operation::DISABLE);
 		}
 
 		public:
-		[[nodiscard]] auto enable_intro_movies() const noexcept -> size_t {
+		[[nodiscard]] auto enable_intro_movies() const noexcept -> std::size_t {
 			return process_movies(movie_operation::ENABLE);
 		}
 
@@ -96,8 +96,8 @@ namespace cat {
 		#pragma region Private API
 
 		private:
-		[[nodiscard]] auto process_movies(const movie_operation op) const noexcept -> size_t {
-			size_t processed_count = 0;
+		[[nodiscard]] auto process_movies(const movie_operation op) const noexcept -> std::size_t {
+			std::size_t processed_count = 0;
 			bool has_encountered_errors = false;
 			std::error_code ec;
 
@@ -261,7 +261,7 @@ namespace cat {
 			if (ec) return std::nullopt;
 
 			std::string content;
-			content.resize(static_cast<size_t>(size));
+			content.resize(static_cast<std::size_t>(size));
 			if (!file.read(content.data(), static_cast<std::streamsize>(size))) return std::nullopt;
 
 			return content;
